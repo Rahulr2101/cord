@@ -1432,6 +1432,34 @@ fn check_max_public_keys_key_agreement_key_addition_error() {
 }
 
 #[test]
+fn check_max_total_key_agreement_keys_exceeded_error() {
+    let auth_key = get_ed25519_authentication_key(&AUTH_SEED_0);
+    let alice_did = get_did_identifier_from_ed25519_key(auth_key.public());
+    
+    // Create a DID with the maximum number of key agreement keys
+    let mut did_details = generate_base_did_details::<Test>(DidVerificationKey::from(auth_key.public()));
+    
+    // Fill the key_agreement_keys to its maximum capacity
+    let max_keys = MaxTotalKeyAgreementKeys::get();
+    let keys = get_key_agreement_keys::<Test>(max_keys);
+    assert_ok!(did_details.add_key_agreement_keys(keys, 0u64));
+    
+    // Try to add one more key
+    let new_key_agreement_key = get_x25519_encryption_key(&ENC_SEED_1);
+    let origin = build_test_origin(alice_did.clone(), alice_did.clone());
+    
+    new_test_ext().execute_with(|| {
+        did::Did::<Test>::insert(alice_did.clone(), did_details);
+        
+        // This should fail with MaxKeyAgreementKeysExceeded
+        assert_noop!(
+            Did::add_key_agreement_key(origin, new_key_agreement_key),
+            did::Error::<Test>::MaxKeyAgreementKeysExceeded
+        );
+    });
+}
+
+#[test]
 fn check_did_not_present_key_agreement_key_addition_error() {
 	let auth_key = get_ed25519_authentication_key(&AUTH_SEED_0);
 	let alice_did = get_did_identifier_from_ed25519_key(auth_key.public());
